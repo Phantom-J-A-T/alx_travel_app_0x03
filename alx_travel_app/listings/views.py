@@ -14,6 +14,7 @@ import uuid
 from .models import Listing, Booking, Payment
 from .serializers import ListingSerializer, BookingSerializer
 from .tasks import send_payment_confirmation
+from .tasks import send_booking_confirmation_email
 
 
 class ListingViewSet(viewsets.ModelViewSet):
@@ -143,3 +144,20 @@ def verify_payment(request):
     payment.save()
 
     return Response({'message': 'Payment failed'}, status=400)
+
+
+
+
+class BookingViewSet(viewsets.ModelViewSet):
+    queryset = Booking.objects.all()
+    serializer_class = BookingSerializer
+
+    def perform_create(self, serializer):
+        # Save the booking object
+        booking = serializer.save()
+        
+        # Trigger the background task
+        customer_email = booking.user.email
+        booking_details = f"Property: {booking.property.name}, Date: {booking.start_date}"
+        
+        send_booking_confirmation_email.delay(customer_email, booking_details)
